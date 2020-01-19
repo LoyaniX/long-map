@@ -3,6 +3,7 @@ package de.comparus.opensource.longmap.impl;
 import de.comparus.opensource.longmap.LongMap;
 import de.comparus.opensource.longmap.models.Entry;
 
+import java.lang.reflect.Array;
 import java.util.Arrays;
 
 public class LongMapImpl<V> implements LongMap<V>
@@ -11,70 +12,79 @@ public class LongMapImpl<V> implements LongMap<V>
     private final int DEFAULT_MAP_SIZE = 16;
     private float LOAD_FACTOR = 0.75f;
     private int sizeToDouble;
-    private Entry[] entries;
+    private Entry[] entryTable;
 
     public LongMapImpl()
     {
-        entries = new Entry[DEFAULT_MAP_SIZE];
+        entryTable = new Entry[DEFAULT_MAP_SIZE];
         sizeToDouble = (int) (DEFAULT_MAP_SIZE * LOAD_FACTOR);
     }
 
     public LongMapImpl(int mapSize)
     {
-        entries = new Entry[mapSize];
+        entryTable = new Entry[mapSize];
         sizeToDouble = (int) (mapSize * LOAD_FACTOR);
     }
 
     public V put(long key, V value)
+{
+    int keyHash = getHash(key);
+    Entry<V> entry = new Entry<>(keyHash, key, value);
+    int index = getIndex(entry);
+    if (entryTable[index] == null)
     {
-        int keyHash = getHash(key);
-        Entry entry = new Entry(keyHash, key, value);
-        int index = entry.hashCode() & (entries.length -1);
-
-        if (entries[index] == null)
+        entryTable[index] = entry;
+    }
+    else
+    {
+        Entry previousEntry = entryTable[index];
+        if (previousEntry.getKey() == entry.getKey())
         {
-            entries[index] = entry;
+            previousEntry.setValue(entry.getValue());
+            return (V) previousEntry.getValue();
         }
         else
         {
-            Entry previousEntry = entries[index];
-            if (previousEntry.getKey() == entry.getKey())
-            {
-                previousEntry.setValue(entry.getValue());
-            }
-            else
-            {
-                entries[index] = new Entry(keyHash, key, value, previousEntry);
-            }
+            entryTable[index] = new Entry(keyHash, key, value, previousEntry);
         }
-
-        size ++;
-
-        if(size == sizeToDouble) changeMapSize();
-        return (V) entry.getValue();
     }
 
+    size ++;
+
+    if(size == sizeToDouble) changeMapSize();
+    return entry.getValue();
+}
+
     public V get(long key) {
-        for (Entry entry : entries)
+        for (Entry entry : entryTable)
         {
             if(entry != null)
             {
-                if(entry.getNextEntry() == null)
+                if(entry.getKey() == key) return (V) entry.getValue();
+                while (entry.getNextEntry() != null)
                 {
+                    entry = entry.getNextEntry();
                     if(entry.getKey() == key) return (V) entry.getValue();
                 }
-                else
-                {
-                    Entry entry1 = entry.getNextEntry();
-                    if (entry1.getKey() == key) return (V) entry1.getValue();
-                }
             }
-        } 
+        }
         return null;
     }
 
-    public V remove(long key) {
-        return null;
+    public V remove(long key)
+    {
+        if (!containsKey(key)) return null;
+        V removalValue = null;
+        for (int i = 0; i < entryTable.length; i++)
+        {
+            if (entryTable[i] != null && (entryTable[i].getKey() == key))
+            {
+                removalValue = (V) entryTable[i].getValue();
+                entryTable[i] = null;
+                size--;
+            }
+        }
+        return removalValue;
     }
 
     public boolean isEmpty() {
@@ -92,21 +102,33 @@ public class LongMapImpl<V> implements LongMap<V>
     }
 
     public long[] keys() {
-        long[] keys = new long[entries.length];
-        for (int i = 0; i < entries.length; i++)
+        long[] keys = new long[size];
+        int index = 0;
+        for (int i = 0; i < entryTable.length; i++)
         {
-            if (entries[i] != null) keys[i] = entries[i].getKey();
+            if (entryTable[i] != null)
+            {
+                keys[index] = entryTable[i].getKey();
+                index++;
+            }
         }
         return keys;
     }
 
     public V[] values() {
-        Object[] values = new Object[entries.length];
-        for (int i = 0; i < entries.length; i++)
+        V[] values = (V[]) new Object[size];
+        int index = 0;
+        for (int i = 0; i < entryTable.length; i++)
         {
-            if (entries[i] != null) values[i] = entries[i].getValue();
+            if (entryTable[i] != null)
+            {
+                values[index] = (V) entryTable[i].getValue();
+                index++;
+            }
         }
-        return (V[]) values;
+        V[] result = (V[]) Array.newInstance(values[0].getClass(), size);
+        System.arraycopy(values, 0, result, 0, size);
+        return result;
     }
 
     public long size()
@@ -116,30 +138,33 @@ public class LongMapImpl<V> implements LongMap<V>
 
     public void clear()
     {
-        int oldLength = entries.length;
-        entries = new Entry[oldLength];
+        int oldLength = entryTable.length;
+        entryTable = new Entry[oldLength];
         size = 0;
     }
 
     private void changeMapSize()
     {
-        Entry[] entries = new Entry[this.entries.length * 2];
+        Entry[] entries = new Entry[entryTable.length * 2];
         size = 0;
-        for (Entry entry : entries)
+        for (Entry entry : entryTable)
         {
             if (entry == null) continue;
-            int index = entry.hashCode() & (entries.length - 1);
+            int index = getIndex(entry);
             entries[index] = entry;
             size++;
         }
-        this.entries = entries;
-        sizeToDouble = (int) (this.entries.length * LOAD_FACTOR);
+        entryTable = entries;
+        sizeToDouble = (int) (entryTable.length * LOAD_FACTOR);
+    }
+
+    private int getIndex(Entry<V> entry)
+    {
+        return entry.getHashValue() % (entryTable.length - 1);
     }
 
     private int getHash(long key)
     {
-        //TODO: Implement better realization of hashCode
-        return Long.hashCode(key);
+        return (int)(key ^ (key >>> 32));
     }
-
 }
