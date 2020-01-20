@@ -31,6 +31,7 @@ public class LongMapImpl<V> implements LongMap<V>
     int keyHash = getHash(key);
     Entry<V> entry = new Entry<>(keyHash, key, value);
     int index = getIndex(entry);
+
     if (entryTable[index] == null)
     {
         entryTable[index] = entry;
@@ -61,6 +62,7 @@ public class LongMapImpl<V> implements LongMap<V>
             if(entry != null)
             {
                 if(entry.getKey() == key) return (V) entry.getValue();
+
                 while (entry.getNextEntry() != null)
                 {
                     entry = entry.getNextEntry();
@@ -104,11 +106,11 @@ public class LongMapImpl<V> implements LongMap<V>
     public long[] keys() {
         long[] keys = new long[size];
         int index = 0;
-        for (int i = 0; i < entryTable.length; i++)
+        for (Entry entry : entryTable)
         {
-            if (entryTable[i] != null)
+            if (entry != null)
             {
-                keys[index] = entryTable[i].getKey();
+                keys[index] = entry.getKey();
                 index++;
             }
         }
@@ -118,11 +120,11 @@ public class LongMapImpl<V> implements LongMap<V>
     public V[] values() {
         V[] values = (V[]) new Object[size];
         int index = 0;
-        for (int i = 0; i < entryTable.length; i++)
+        for (Entry entry : entryTable)
         {
-            if (entryTable[i] != null)
+            if (entry != null)
             {
-                values[index] = (V) entryTable[i].getValue();
+                values[index] = (V) entry.getValue();
                 index++;
             }
         }
